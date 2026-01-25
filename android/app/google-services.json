@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "805035525761",
+    "project_id": "mr-stamina2",
+    "storage_bucket": "mr-stamina2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:805035525761:android:bd475a5e0aee3bb89def80",
+        "android_client_info": {
+          "package_name": "com.example.mr_stamina_2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXib-2ISyROPbgteVMiVDKS16W1tBRUi0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

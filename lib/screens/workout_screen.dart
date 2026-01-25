@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../models/difficulty.dart';
 import '../providers/user_stats_provider.dart';
 import 'result_screen.dart';
 import '../services/sound_service.dart';
 
+// --- ГЛАВНЫЙ ЭКРАН ТРЕНИРОВКИ ---
 class WorkoutScreen extends StatefulWidget {
   final Difficulty difficulty;
   const WorkoutScreen({super.key, required this.difficulty});
@@ -18,9 +20,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   late int _remainingTime;
   late int _maxTimeForPhase;
   late int _currentRound;
-  
-  String _phase = 'Prep'; 
-  
+
+  String _phase = 'Prep';
+
   Timer? _timer;
   bool _isPaused = false;
   final SoundService _soundService = SoundService();
@@ -39,8 +41,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     super.dispose();
   }
 
-  // --- ЛОГИКА ---
-
+  // --- ЛОГИКА ТАЙМЕРА (Видео здесь больше нет, оно живет своей жизнью) ---
   void _startPrepPhase() {
     setState(() {
       _phase = 'Prep';
@@ -79,7 +80,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         if (_remainingTime > 0) {
           _remainingTime--;
           if (_remainingTime > 0 && _remainingTime <= 3) {
-             _soundService.play('beep.mp3');
+            _soundService.play('beep.mp3');
           }
         } else {
           _timer?.cancel();
@@ -109,18 +110,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void _finishWorkout() {
     _soundService.play('gong.mp3');
     final provider = Provider.of<UserStatsProvider>(context, listen: false);
-    
-    // 1. ЗАПОМИНАЕМ СТАРЫЕ СТАТЫ (ДО НАГРАДЫ)
+
     final oldStats = provider.userStats;
-    
     int xpEarned = widget.difficulty.rounds * 10;
     int strengthEarned = widget.difficulty.rounds * 2;
     int enduranceEarned = widget.difficulty.rounds * 3;
 
-    // 2. НАЧИСЛЯЕМ НОВЫЕ
     provider.completeWorkout(xpEarned, strengthEarned, enduranceEarned);
 
-    // 3. ПЕРЕДАЕМ И СТАРОЕ, И НОВОЕ В ЭКРАН РЕЗУЛЬТАТА
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -128,9 +125,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           xpEarned: xpEarned,
           strengthEarned: strengthEarned,
           enduranceEarned: enduranceEarned,
-          oldExp: oldStats.exp,             // Старый опыт
-          oldStrength: oldStats.strength,   // Старая сила
-          oldEndurance: oldStats.endurance, // Старая выносливость
+          oldExp: oldStats.exp,
+          oldStrength: oldStats.strength,
+          oldEndurance: oldStats.endurance,
           oldLevel: oldStats.level,
         ),
       ),
@@ -138,7 +135,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   void _togglePause() {
-    setState(() { _isPaused = !_isPaused; });
+    setState(() {
+      _isPaused = !_isPaused;
+      // Мы УБРАЛИ отсюда управление видео.
+      // Теперь пауза останавливает только таймер. Видео играет вечно.
+    });
   }
 
   Future<void> _showExitDialog() async {
@@ -149,10 +150,25 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         title: const Text("Сдаешься?", style: TextStyle(color: Colors.white)),
-        content: const Text("Прогресс этой тренировки будет потерян.", style: TextStyle(color: Colors.white70)),
+        content: const Text(
+          "Прогресс этой тренировки будет потерян.",
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("НЕТ", style: TextStyle(color: Colors.greenAccent))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("ВЫЙТИ", style: TextStyle(color: Colors.redAccent))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              "НЕТ",
+              style: TextStyle(color: Colors.greenAccent),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              "ВЫЙТИ",
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
         ],
       ),
     );
@@ -166,21 +182,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Widget build(BuildContext context) {
     Color primaryColor;
     String phaseText;
-    
+
     if (_phase == 'Prep') {
-      primaryColor = Colors.amber; // Подготовка всегда желтая
+      primaryColor = Colors.amber;
       phaseText = "ГОТОВЬСЯ";
     } else if (_phase == 'Work') {
-      // ИСПРАВЛЕНИЕ: Цвет зависит от сложности!
-      primaryColor = widget.difficulty.color; 
+      primaryColor = widget.difficulty.color;
       phaseText = "РАБОТА";
     } else {
-      primaryColor = Colors.blueAccent; // Отдых всегда синий
+      primaryColor = Colors.blueAccent;
       phaseText = "ОТДЫХ";
     }
 
-    double progress = _remainingTime / _maxTimeForPhase; 
-    double scale = 0.6 + (progress * 0.4); 
+    double progress = _remainingTime / _maxTimeForPhase;
+    double scale = 0.6 + (progress * 0.4);
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -192,11 +207,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           onPressed: _showExitDialog,
         ),
       ),
-      extendBodyBehindAppBar: true, 
+      extendBodyBehindAppBar: true,
 
       body: Column(
         children: [
-          // ВИДЕО
+          // ВЕРХНЯЯ ЧАСТЬ: ВИДЕО
           Expanded(
             flex: 4,
             child: Container(
@@ -205,39 +220,68 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(
-                     'assets/images/burpee_placeholder.png', 
-                     fit: BoxFit.cover,
-                     errorBuilder: (context, error, stackTrace) => const Center(
-                       child: Icon(Icons.videocam_off, color: Colors.white24, size: 50),
-                     ),
+                  // 1. ОТДЕЛЬНОЕ ВИДЕО (const = Бессмертие)
+                  // Благодаря const, этот виджет создается 1 раз и ИГНОРИРУЕТ обновления таймера.
+                  const SimpleVideoPlayer(
+                    videoPath: 'assets/videos/pushups.mp4',
                   ),
+
+                  // 2. ГРАДИЕНТ
                   Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black87],
+                        colors: [
+                          Colors.black45,
+                          Colors.transparent,
+                          Colors.black87,
+                        ],
                       ),
                     ),
                   ),
+
+                  // 3. ТЕКСТ ФАЗЫ
                   Positioned(
                     bottom: 20,
                     left: 20,
                     child: Text(
                       phaseText,
-                      style: TextStyle(color: primaryColor, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 2),
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                        shadows: const [
+                          Shadow(
+                            blurRadius: 10,
+                            color: Colors.black,
+                            offset: Offset(2, 2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+
+                  // 4. СЧЕТЧИК РАУНДОВ
                   Positioned(
                     top: 50,
                     right: 20,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Text(
                         "Раунд $_currentRound / ${widget.difficulty.rounds}",
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -246,22 +290,30 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             ),
           ),
 
-          // ТАЙМЕР
+          // НИЖНЯЯ ЧАСТЬ: ТАЙМЕР
           Expanded(
-            flex: 6, 
+            flex: 6,
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-                // Тень берет цвет текущей фазы (и сложности)
-                boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 20, spreadRadius: 1)],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   AnimatedScale(
-                    scale: scale, 
+                    scale: scale,
                     duration: const Duration(seconds: 1),
                     curve: Curves.easeInOut,
                     child: Container(
@@ -271,7 +323,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(color: primaryColor, width: 8),
                         boxShadow: [
-                          BoxShadow(color: primaryColor.withOpacity(0.4), blurRadius: 30, spreadRadius: 5)
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.4),
+                            blurRadius: 30,
+                            spreadRadius: 5,
+                          ),
                         ],
                       ),
                       child: Center(
@@ -286,7 +342,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
 
                   if (_phase != 'Prep')
@@ -296,7 +352,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         if (!_isPaused)
                           IconButton(
                             iconSize: 70,
-                            icon: const Icon(Icons.pause_circle_filled, color: Colors.white54),
+                            icon: const Icon(
+                              Icons.pause_circle_filled,
+                              color: Colors.white54,
+                            ),
                             onPressed: _togglePause,
                           )
                         else
@@ -304,13 +363,19 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                             children: [
                               IconButton(
                                 iconSize: 60,
-                                icon: const Icon(Icons.cancel, color: Colors.redAccent),
+                                icon: const Icon(
+                                  Icons.cancel,
+                                  color: Colors.redAccent,
+                                ),
                                 onPressed: _showExitDialog,
                               ),
                               const SizedBox(width: 30),
                               IconButton(
                                 iconSize: 80,
-                                icon: const Icon(Icons.play_circle_fill, color: Colors.greenAccent),
+                                icon: const Icon(
+                                  Icons.play_circle_fill,
+                                  color: Colors.greenAccent,
+                                ),
                                 onPressed: _togglePause,
                               ),
                             ],
@@ -322,6 +387,74 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// --- ОТДЕЛЬНЫЙ ВИДЖЕТ ПЛЕЕРА ---
+// Он живет своей жизнью и не зависит от родителя
+// --- ИСПРАВЛЕННЫЙ ПЛЕЕР (Игнорирует звуки таймера) ---
+class SimpleVideoPlayer extends StatefulWidget {
+  final String videoPath;
+  const SimpleVideoPlayer({super.key, required this.videoPath});
+
+  @override
+  State<SimpleVideoPlayer> createState() => _SimpleVideoPlayerState();
+}
+
+class _SimpleVideoPlayerState extends State<SimpleVideoPlayer> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initVideo();
+  }
+
+  Future<void> _initVideo() async {
+    try {
+      // 👇 ВОТ ОНО! ГЛАВНОЕ ИСПРАВЛЕНИЕ
+      // Мы говорим: "Смешивай звук с другими".
+      // Это запрещает Андроиду ставить видео на паузу, когда пищит таймер.
+      _controller = VideoPlayerController.asset(
+        widget.videoPath,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+
+      await _controller.initialize();
+      await _controller.setLooping(true);
+      await _controller.setVolume(
+        0.0,
+      ); // Даже если видео без звука, опция выше нужна!
+      await _controller.play();
+
+      if (mounted) {
+        setState(() => _isInitialized = true);
+      }
+    } catch (e) {
+      debugPrint("Error loading video: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return Container(color: Colors.black);
+    }
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: _controller.value.size.width,
+        height: _controller.value.size.height,
+        child: VideoPlayer(_controller),
       ),
     );
   }

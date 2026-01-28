@@ -6,9 +6,45 @@ import 'achievements_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 import 'dart:io';
+import '../widgets/rate_app_dialog.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+// 👇 ВСЯ ЛОГИКА ДОЛЖНА БЫТЬ ВНУТРИ ЭТОГО КЛАССА (State)
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+
+    // Ждем построения экрана и проверяем условие
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkRatingCondition();
+    });
+  }
+
+  void _checkRatingCondition() {
+    final provider = Provider.of<UserStatsProvider>(context, listen: false);
+
+    // Условие:
+    // 1. Тренировок >= 4
+    // 2. Мы еще НЕ показывали диалог
+    if (provider.userStats.totalWorkouts >= 4 && !provider.isRatingShown) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const RateAppDialog(),
+      ).then((userResult) {
+        if (userResult == true) {
+          provider.markRatingAsShown();
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +55,10 @@ class DashboardScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: const Color(0xFF121212),
           appBar: AppBar(
-            title: const Text('Mr.Stamina 2.0', style: TextStyle(color: Colors.white)),
+            title: const Text(
+              'Mr.Stamina 2.0',
+              style: TextStyle(color: Colors.white),
+            ),
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
@@ -27,23 +66,42 @@ class DashboardScreen extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.local_fire_department,
-                    color: stats.currentStreak > 0 ? Colors.orange : Colors.grey,
+                    color: stats.currentStreak > 0
+                        ? Colors.orange
+                        : Colors.grey,
                   ),
                   Text(
                     '${stats.currentStreak} ДН.',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(width: 15),
                   IconButton(
-                    icon: const Icon(Icons.calendar_month, color: Colors.cyanAccent),
+                    icon: const Icon(
+                      Icons.calendar_month,
+                      color: Colors.cyanAccent,
+                    ),
                     onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoryScreen()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HistoryScreen(),
+                        ),
+                      );
                     },
                   ),
                   IconButton(
                     icon: const Icon(Icons.emoji_events, color: Colors.amber),
                     onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const AchievementsScreen()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AchievementsScreen(),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(width: 10),
@@ -58,31 +116,47 @@ class DashboardScreen extends StatelessWidget {
                 // Аватар и Имя
                 GestureDetector(
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
                   },
                   child: Column(
                     children: [
-                     // --- АВАТАР ---
+                      // --- АВАТАР ---
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.grey[800],
                         // Если есть фото - показываем, нет - иконка
-                        backgroundImage: stats.profilePicturePath != null 
-                            ? FileImage(File(stats.profilePicturePath!)) 
+                        backgroundImage: stats.profilePicturePath != null
+                            ? FileImage(File(stats.profilePicturePath!))
                             : null,
-                        child: stats.profilePicturePath == null 
-                            ? const Icon(Icons.person, size: 50, color: Colors.white) 
+                        child: stats.profilePicturePath == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Colors.white,
+                              )
                             : null,
                       ),
                       // --------------,
                       const SizedBox(height: 10),
                       Text(
-                        stats.name, 
-                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                        stats.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
-                        "Боец ${stats.level} уровня", 
-                        style: const TextStyle(color: Colors.white54, fontSize: 14),
+                        "Боец ${stats.level} уровня",
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
@@ -91,7 +165,7 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(height: 30),
 
                 // --- НОВЫЕ ГРАДИЕНТНЫЕ ШКАЛЫ ---
-                
+
                 // 1. ОПЫТ (Голубой)
                 _buildGradientStatBar(
                   label: "ОПЫТ",
@@ -99,9 +173,12 @@ class DashboardScreen extends StatelessWidget {
                   current: stats.exp,
                   max: stats.expToNextLevel,
                   icon: Icons.star,
-                  colors: [const Color(0xFF2193b0), const Color(0xFF6dd5ed)], // Голубой градиент
+                  colors: [
+                    const Color(0xFF2193b0),
+                    const Color(0xFF6dd5ed),
+                  ], // Голубой градиент
                 ),
-                
+
                 const SizedBox(height: 16),
 
                 // 2. СИЛА (Красный)
@@ -111,7 +188,10 @@ class DashboardScreen extends StatelessWidget {
                   current: stats.strengthProgress,
                   max: 100,
                   icon: Icons.fitness_center,
-                  colors: [const Color(0xFFcb2d3e), const Color(0xFFef473a)], // Красный градиент
+                  colors: [
+                    const Color(0xFFcb2d3e),
+                    const Color(0xFFef473a),
+                  ], // Красный градиент
                 ),
 
                 const SizedBox(height: 16),
@@ -123,7 +203,10 @@ class DashboardScreen extends StatelessWidget {
                   current: stats.enduranceProgress,
                   max: 100,
                   icon: Icons.favorite,
-                  colors: [const Color(0xFFff9966), const Color(0xFFff5e62)], // Оранжевый градиент
+                  colors: [
+                    const Color(0xFFff9966),
+                    const Color(0xFFff5e62),
+                  ], // Оранжевый градиент
                 ),
 
                 const SizedBox(height: 40),
@@ -135,17 +218,25 @@ class DashboardScreen extends StatelessWidget {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00E676),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const LevelSelectionScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const LevelSelectionScreen(),
+                        ),
                       );
                     },
                     child: const Text(
                       "В БОЙ",
-                      style: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -185,10 +276,19 @@ class DashboardScreen extends StatelessWidget {
                 children: [
                   Icon(icon, color: colors.last, size: 20),
                   const SizedBox(width: 8),
-                  Text("$label (Ур. $level)", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text(
+                    "$label (Ур. $level)",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
-              Text("$current / $max", style: const TextStyle(color: Colors.white54)),
+              Text(
+                "$current / $max",
+                style: const TextStyle(color: Colors.white54),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -207,7 +307,11 @@ class DashboardScreen extends StatelessWidget {
                   gradient: LinearGradient(colors: colors),
                   borderRadius: BorderRadius.circular(6),
                   boxShadow: [
-                    BoxShadow(color: colors.last.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))
+                    BoxShadow(
+                      color: colors.last.withOpacity(0.4),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
                   ],
                 ),
               ),

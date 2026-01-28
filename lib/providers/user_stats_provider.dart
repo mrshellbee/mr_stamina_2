@@ -9,6 +9,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Если у тебя были другие импорты (например dart:io), оставь их тоже.
 class UserStatsProvider extends ChangeNotifier {
+  bool _isRatingShown = false;
+  bool get isRatingShown => _isRatingShown;
+
   UserStats _userStats = UserStats(
     name: 'Боец',
     level: 1,
@@ -77,7 +80,7 @@ class UserStatsProvider extends ChangeNotifier {
             'endurance': _userStats.endurance,
             'totalWorkouts': _userStats.totalWorkouts,
             'lastWorkoutDate': _userStats.lastWorkoutDate?.toIso8601String(),
-
+            'isRatingShown': _isRatingShown,
             // 👇 ТВОИ ПЕРЕМЕННЫЕ 👇
             'currentStreak': _userStats.currentStreak,
             'maxStreak': _userStats.maxStreak,
@@ -112,7 +115,7 @@ class UserStatsProvider extends ChangeNotifier {
           _userStats.strength = data['strength'] ?? 0;
           _userStats.endurance = data['endurance'] ?? 0;
           _userStats.totalWorkouts = data['totalWorkouts'] ?? 0;
-
+          _isRatingShown = data['isRatingShown'] ?? false;
           _userStats.currentStreak = data['currentStreak'] ?? 0;
           _userStats.maxStreak = data['maxStreak'] ?? 0;
 
@@ -145,6 +148,13 @@ class UserStatsProvider extends ChangeNotifier {
     } catch (e) {
       print("Ошибка загрузки из облака: $e");
     }
+  }
+
+  // 👇 НОВЫЙ МЕТОД
+  void markRatingAsShown() {
+    _isRatingShown = true;
+    _saveToCloud(); // Сразу сохраняем в облако
+    notifyListeners();
   }
 
   Future<void> signOut() async {

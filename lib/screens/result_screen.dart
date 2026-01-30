@@ -3,27 +3,27 @@ import 'package:provider/provider.dart';
 import '../providers/user_stats_provider.dart';
 import '../widgets/celebration_dialog.dart';
 import 'dashboard_screen.dart';
+import '../services/sound_service.dart';
+import '../models/achievements_data.dart';
 
 class ResultScreen extends StatefulWidget {
-  final int xpEarned;
   final int strengthEarned;
   final int enduranceEarned;
 
-  // Старые показатели
-  final int oldExp;
+  final int oldTotalWorkouts;
   final int oldStrength;
   final int oldEndurance;
-  final int oldLevel;
+
+  final List<String> newAchievements;
 
   const ResultScreen({
     super.key,
-    required this.xpEarned,
     required this.strengthEarned,
     required this.enduranceEarned,
-    required this.oldExp,
+    required this.oldTotalWorkouts,
     required this.oldStrength,
     required this.oldEndurance,
-    required this.oldLevel,
+    this.newAchievements = const [],
   });
 
   @override
@@ -35,9 +35,13 @@ class _ResultScreenState extends State<ResultScreen>
   late AnimationController _controller;
   bool _isSaving = false;
 
+  final SoundService _soundService = SoundService();
+
   @override
   void initState() {
     super.initState();
+    _soundService.play('victory.mp3');
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -47,6 +51,7 @@ class _ResultScreenState extends State<ResultScreen>
   @override
   void dispose() {
     _controller.dispose();
+    _soundService.dispose();
     super.dispose();
   }
 
@@ -55,54 +60,79 @@ class _ResultScreenState extends State<ResultScreen>
     setState(() => _isSaving = true);
 
     final provider = Provider.of<UserStatsProvider>(context, listen: false);
+    final stats = provider.userStats;
 
-    // 1. Сохраняем
-    await provider.completeWorkout(
-      widget.xpEarned,
-      widget.strengthEarned,
-      widget.enduranceEarned,
-    );
+    // --- 1. ПРОВЕРКА УРОВНЕЙ ---
+    int newMainLevel = stats.level;
+    int newStrLevel = stats.strengthLevel;
+    int newEndLevel = stats.enduranceLevel;
 
-    if (!mounted) return;
+    int oldMainLevel = _calculateLevel(widget.oldTotalWorkouts);
+    int oldStrLevel = (widget.oldStrength / 100).floor() + 1;
+    int oldEndLevel = (widget.oldEndurance / 100).floor() + 1;
 
-    // 2. Проверяем рост уровней для поздравления
-    int newLevel = provider.userStats.level;
-    int newStrength = provider.userStats.strength;
-    int newEndurance = provider.userStats.endurance;
+    bool isMainUp = newMainLevel > oldMainLevel;
+    bool isStrUp = newStrLevel > oldStrLevel;
+    bool isEndUp = newEndLevel > oldEndLevel;
 
-    bool isMainLevelUp = newLevel > widget.oldLevel;
-    bool isStrengthUp = (widget.oldStrength ~/ 100) < (newStrength ~/ 100);
-    bool isEnduranceUp = (widget.oldEndurance ~/ 100) < (newEndurance ~/ 100);
+    String? dialogTitle;
+    String? dialogMessage;
 
-    // 3. Текст поздравления
-    String title = "ОТЛИЧНАЯ РАБОТА!";
-    String message = "Тренировка завершена успешно.";
-
-    if (isMainLevelUp) {
-      title = "НОВЫЙ УРОВЕНЬ!";
-      message = "Ты перешел на новый этап развития (Уровень $newLevel)!";
-    } else if (isStrengthUp) {
-      title = "РОСТ СИЛЫ!";
-      message = "Твои мышцы стали крепче. Новый уровень силы!";
-    } else if (isEnduranceUp) {
-      title = "РОСТ ВЫНОСЛИВОСТИ!";
-      message = "Твое дыхание стало глубже. Новый уровень выносливости!";
+    if (isMainUp) {
+      dialogTitle = "НОВЫЙ УРОВЕНЬ!";
+      dialogMessage = "Ты достиг $newMainLevel уровня! Так держать!";
+    } else if (isStrUp) {
+      dialogTitle = "СИЛА ВЫРОСЛА!";
+      dialogMessage =
+          "Твои мышцы стали крепче. Теперь у тебя $newStrLevel уровень силы!";
+    } else if (isEndUp) {
+      dialogTitle = "ВЫНОСЛИВОСТЬ ВЫРОСЛА!";
+      dialogMessage =
+          "Дыхание стало глубже. Теперь у тебя $newEndLevel уровень выносливости!";
     }
 
-    // 4. Праздник, если есть повод
-    if (isMainLevelUp || isStrengthUp || isEnduranceUp) {
+    if (dialogTitle != null) {
+      _soundService.play('levelup.mp3');
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => CelebrationDialog(
-          title: title,
-          message: message,
-          buttonText: "ИДЁМ ДАЛЬШЕ",
+          title: dialogTitle!,
+          message: dialogMessage!,
+          buttonText: "УРА!",
         ),
       );
     }
 
-    // 5. Выход
+    // --- 2. ПРОВЕРКА НОВЫХ АЧИВОК ---
+    if (widget.newAchievements.isNotEmpty) {
+      for (String id in widget.newAchievements) {
+        final achievement = AchievementsData.allAchievements.firstWhere(
+          (a) => a.id == id,
+          // 👇 ИСПРАВЛЕНО: Убрали icon/condition, добавили requiredValue
+          orElse: () => Achievement(
+            id: 'unknown',
+            title: 'Достижение',
+            description: '',
+            requiredValue: 0,
+          ),
+        );
+
+        _soundService.play('levelup.mp3');
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => CelebrationDialog(
+            title: "ДОСТИЖЕНИЕ!",
+            message:
+                "Открыто: ${achievement.title}\n${achievement.description}",
+            buttonText: "КРУТО",
+          ),
+        );
+      }
+    }
+
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
@@ -111,23 +141,27 @@ class _ResultScreenState extends State<ResultScreen>
     );
   }
 
+  int _calculateLevel(int workouts) {
+    if (workouts < 12) return 1;
+    if (workouts < 24) return 2;
+    if (workouts < 36) return 3;
+    if (workouts < 50) return 4;
+    return 5;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // --- ПОДГОТОВКА ДАННЫХ (Приводим к виду как на Дашборде) ---
+    final provider = Provider.of<UserStatsProvider>(context, listen: false);
+    final stats = provider.userStats;
 
-    // 1. ОПЫТ (Он сбрасывается, но цель растет: 100, 200, 300...)
-    int xpLevel = widget.oldLevel;
-    int xpTarget = xpLevel * 100;
-    int xpCurrent = widget.oldExp;
-    // Если xpCurrent > xpTarget (из-за бага), ограничиваем визуально, но вообще логика provider должна была сбросить
+    int workoutsCurrent = widget.oldTotalWorkouts;
+    int workoutsTarget = stats.workoutsTargetForNextLevel;
+    int workoutsAdded = 1;
 
-    // 2. СИЛА (Копится вечно, уровень каждые 100)
     int strLevel = (widget.oldStrength ~/ 100) + 1;
-    int strCurrent =
-        widget.oldStrength % 100; // Остаток от деления на 100 (например, 70)
+    int strCurrent = widget.oldStrength % 100;
     int strTarget = 100;
 
-    // 3. ВЫНОСЛИВОСТЬ (Аналогично)
     int endLevel = (widget.oldEndurance ~/ 100) + 1;
     int endCurrent = widget.oldEndurance % 100;
     int endTarget = 100;
@@ -140,7 +174,11 @@ class _ResultScreenState extends State<ResultScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.emoji_events, size: 80, color: Colors.amber),
+              const Icon(
+                Icons.check_circle_outline,
+                size: 80,
+                color: Colors.greenAccent,
+              ),
               const SizedBox(height: 10),
               const Text(
                 "ТРЕНИРОВКА ЗАВЕРШЕНА",
@@ -150,20 +188,16 @@ class _ResultScreenState extends State<ResultScreen>
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Text(
-                "Отличный прогресс!",
-                style: TextStyle(color: Colors.white54, fontSize: 16),
-              ),
               const SizedBox(height: 40),
 
-              // 1. ОПЫТ
+              // 1. ШКАЛА ТРЕНИРОВОК
               _buildSimpleStatBar(
-                label: "ОПЫТ",
-                level: xpLevel,
-                current: xpCurrent,
-                max: xpTarget,
-                added: widget.xpEarned,
-                icon: Icons.star,
+                label: "ТРЕНИРОВКИ",
+                level: stats.level,
+                current: workoutsCurrent,
+                max: workoutsTarget,
+                added: workoutsAdded,
+                icon: Icons.timer,
                 gradientColors: [
                   const Color(0xFF2193b0),
                   const Color(0xFF6dd5ed),
@@ -213,23 +247,14 @@ class _ResultScreenState extends State<ResultScreen>
                     ),
                   ),
                   onPressed: _isSaving ? null : _handleFinish,
-                  child: _isSaving
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.black,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          "ЗАВЕРШИТЬ И СОХРАНИТЬ",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                  child: const Text(
+                    "ОТЛИЧНО",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -239,8 +264,6 @@ class _ResultScreenState extends State<ResultScreen>
     );
   }
 
-  // 👇 Упрощенный, но красивый виджет
-  // Он просто рисует "Было + Добавили / Максимум"
   Widget _buildSimpleStatBar({
     required String label,
     required int level,
@@ -250,21 +273,16 @@ class _ResultScreenState extends State<ResultScreen>
     required IconData icon,
     required List<Color> gradientColors,
   }) {
-    // Рассчитываем проценты для анимации
     double startPercent = current / max;
-    // Если уровень повышается (current + added > max), мы просто заполняем до конца (1.0)
     double targetPercent = (current + added) / max;
     if (targetPercent > 1.0) targetPercent = 1.0;
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        // Анимированное значение от start до target
         double animatedPercent =
             startPercent + (targetPercent - startPercent) * _controller.value;
-        // Текущее число (для текста)
         int displayedValue = (current + (added * _controller.value)).toInt();
-        // Если переполнили бар, показываем Максимум (чтобы не было 105/100)
         if (displayedValue > max) displayedValue = max;
 
         return Container(
@@ -284,7 +302,7 @@ class _ResultScreenState extends State<ResultScreen>
                       Icon(icon, color: gradientColors.last, size: 24),
                       const SizedBox(width: 10),
                       Text(
-                        "$label (Ур. $level)",
+                        "$label",
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -292,7 +310,6 @@ class _ResultScreenState extends State<ResultScreen>
                       ),
                     ],
                   ),
-                  // Зеленый плюсик справа
                   Text(
                     "+$added",
                     style: TextStyle(
@@ -304,11 +321,8 @@ class _ResultScreenState extends State<ResultScreen>
                 ],
               ),
               const SizedBox(height: 10),
-
-              // Прогресс бар
               Stack(
                 children: [
-                  // Серый фон
                   Container(
                     height: 12,
                     width: double.infinity,
@@ -317,18 +331,6 @@ class _ResultScreenState extends State<ResultScreen>
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
-                  // Старое значение (полупрозрачное)
-                  FractionallySizedBox(
-                    widthFactor: startPercent > 0 ? startPercent : 0.01,
-                    child: Container(
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: gradientColors.first.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                  ),
-                  // Анимированное заполнение (яркое)
                   FractionallySizedBox(
                     widthFactor: animatedPercent > 0 ? animatedPercent : 0.01,
                     child: Container(
@@ -348,7 +350,6 @@ class _ResultScreenState extends State<ResultScreen>
                 ],
               ),
               const SizedBox(height: 4),
-              // Текст снизу (240 / 400)
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(

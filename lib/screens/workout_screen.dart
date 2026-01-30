@@ -41,7 +41,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     super.dispose();
   }
 
-  // --- ЛОГИКА ТАЙМЕРА (Видео здесь больше нет, оно живет своей жизнью) ---
+  // --- ЛОГИКА ТАЙМЕРА ---
   void _startPrepPhase() {
     setState(() {
       _phase = 'Prep';
@@ -107,28 +107,35 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     }
   }
 
-  void _finishWorkout() {
+  // ЗАВЕРШЕНИЕ (БЕЗ ОПЫТА, ТОЛЬКО СТАТЫ)
+  // 👇 Сделали метод асинхронным (async), чтобы подождать результат
+  Future<void> _finishWorkout() async {
     _soundService.play('gong.mp3');
     final provider = Provider.of<UserStatsProvider>(context, listen: false);
 
     final oldStats = provider.userStats;
-    int xpEarned = widget.difficulty.rounds * 10;
+
     int strengthEarned = widget.difficulty.rounds * 2;
     int enduranceEarned = widget.difficulty.rounds * 3;
 
-    provider.completeWorkout(xpEarned, strengthEarned, enduranceEarned);
+    // 👇 Ждем список новых ачивок
+    List<String> newAchievements = await provider.completeWorkout(
+      strengthEarned,
+      enduranceEarned,
+    );
+
+    if (!mounted) return; // Проверка безопасности
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => ResultScreen(
-          xpEarned: xpEarned,
           strengthEarned: strengthEarned,
           enduranceEarned: enduranceEarned,
-          oldExp: oldStats.exp,
+          oldTotalWorkouts: oldStats.totalWorkouts,
           oldStrength: oldStats.strength,
           oldEndurance: oldStats.endurance,
-          oldLevel: oldStats.level,
+          newAchievements: newAchievements, // 👇 Передаем в ResultScreen
         ),
       ),
     );
@@ -137,8 +144,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void _togglePause() {
     setState(() {
       _isPaused = !_isPaused;
-      // Мы УБРАЛИ отсюда управление видео.
-      // Теперь пауза останавливает только таймер. Видео играет вечно.
     });
   }
 
@@ -183,6 +188,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     Color primaryColor;
     String phaseText;
 
+    // Определяем, отдых сейчас или нет (для затемнения)
+    bool isResting = (_phase == 'Rest' || _phase == 'Prep');
+
     if (_phase == 'Prep') {
       primaryColor = Colors.amber;
       phaseText = "ГОТОВЬСЯ";
@@ -220,13 +228,34 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // 1. ОТДЕЛЬНОЕ ВИДЕО (const = Бессмертие)
-                  // Благодаря const, этот виджет создается 1 раз и ИГНОРИРУЕТ обновления таймера.
+                  // 1. ВИДЕО (Играет всегда)
                   const SimpleVideoPlayer(
                     videoPath: 'assets/videos/pushups.mp4',
                   ),
 
-                  // 2. ГРАДИЕНТ
+                  // 2. ЗАТЕМНЕНИЕ (ШТОРКА)
+                  // Если отдых или подготовка -> затемняем видео
+                  AnimatedContainer(
+                    duration: const Duration(
+                      milliseconds: 500,
+                    ), // Плавное затемнение
+                    color: isResting
+                        ? Colors.black.withOpacity(
+                            0.85,
+                          ) // Сильное затемнение на отдыхе
+                        : Colors.transparent, // Прозрачно во время работы
+                    child: isResting
+                        ? Center(
+                            child: Icon(
+                              _phase == 'Rest' ? Icons.nights_stay : Icons.bolt,
+                              color: Colors.white12,
+                              size: 100,
+                            ),
+                          )
+                        : null,
+                  ),
+
+                  // 3. ГРАДИЕНТ (Для читаемости текста внизу)
                   Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
@@ -241,7 +270,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     ),
                   ),
 
-                  // 3. ТЕКСТ ФАЗЫ
+                  // 4. ТЕКСТ ФАЗЫ
                   Positioned(
                     bottom: 20,
                     left: 20,
@@ -263,7 +292,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     ),
                   ),
 
-                  // 4. СЧЕТЧИК РАУНДОВ
+                  // 5. СЧЕТЧИК РАУНДОВ
                   Positioned(
                     top: 50,
                     right: 20,
@@ -393,8 +422,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 }
 
 // --- ОТДЕЛЬНЫЙ ВИДЖЕТ ПЛЕЕРА ---
-// Он живет своей жизнью и не зависит от родителя
-// --- ИСПРАВЛЕННЫЙ ПЛЕЕР (Игнорирует звуки таймера) ---
 class SimpleVideoPlayer extends StatefulWidget {
   final String videoPath;
   const SimpleVideoPlayer({super.key, required this.videoPath});
@@ -415,19 +442,15 @@ class _SimpleVideoPlayerState extends State<SimpleVideoPlayer> {
 
   Future<void> _initVideo() async {
     try {
-      // 👇 ВОТ ОНО! ГЛАВНОЕ ИСПРАВЛЕНИЕ
-      // Мы говорим: "Смешивай звук с другими".
-      // Это запрещает Андроиду ставить видео на паузу, когда пищит таймер.
       _controller = VideoPlayerController.asset(
         widget.videoPath,
+        // Разрешаем микширование, чтобы таймер не глушил видео
         videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
       );
 
       await _controller.initialize();
       await _controller.setLooping(true);
-      await _controller.setVolume(
-        0.0,
-      ); // Даже если видео без звука, опция выше нужна!
+      await _controller.setVolume(0.0);
       await _controller.play();
 
       if (mounted) {

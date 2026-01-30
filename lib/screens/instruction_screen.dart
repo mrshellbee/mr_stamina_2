@@ -53,6 +53,9 @@ class InstructionScreen extends StatelessWidget {
                   _buildStep("1. Положи телефон на пол перед собой."),
                   _buildStep("2. Приготовься, будет 3 секунды на старт."),
                   _buildStep("3. Повторяй движения за видео."),
+                  _buildStep(
+                    "4. БУДЕМ ДЕЛАТЬ БЁРПИ: 20 СЕКУНД РАБОТЫ, 10 СЕКУНД ОТДЫХА.",
+                  ),
 
                   const Spacer(),
 
@@ -76,7 +79,7 @@ class InstructionScreen extends StatelessWidget {
                         );
                       },
                       child: const Text(
-                        "ПОГНАЛИ!",
+                        "НАЧАТЬ ТРЕНИРОВКУ!",
                         style: TextStyle(
                           color: Colors.black,
                           fontSize: 22,

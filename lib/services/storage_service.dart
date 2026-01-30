@@ -20,12 +20,11 @@ class StorageService {
     // Если данных нет (первый запуск), возвращаем новичка
     if (jsonString == null) {
       return UserStats(
-        level: 1,
-        exp: 0,
+        // level и exp удалены, так как они теперь вычисляются автоматически
         strength: 0,
         endurance: 0,
         totalWorkouts: 0,
-        // Остальные поля заполнятся сами (0 и пустые списки)
+        // Остальные поля (имя, стрик) заполнятся значениями по умолчанию из модели
       );
     }
 
@@ -34,13 +33,7 @@ class StorageService {
       return UserStats.fromJson(json);
     } catch (e) {
       // Если файл поврежден, тоже возвращаем новичка
-      return UserStats(
-        level: 1,
-        exp: 0,
-        strength: 0,
-        endurance: 0,
-        totalWorkouts: 0,
-      );
+      return UserStats(strength: 0, endurance: 0, totalWorkouts: 0);
     }
   }
 }

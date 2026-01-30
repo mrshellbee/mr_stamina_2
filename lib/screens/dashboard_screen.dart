@@ -15,13 +15,12 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-// 👇 ВСЯ ЛОГИКА ДОЛЖНА БЫТЬ ВНУТРИ ЭТОГО КЛАССА (State)
 class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
 
-    // Ждем построения экрана и проверяем условие
+    // Ждем построения экрана и проверяем условие для рейтинга
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkRatingCondition();
     });
@@ -30,9 +29,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _checkRatingCondition() {
     final provider = Provider.of<UserStatsProvider>(context, listen: false);
 
-    // Условие:
-    // 1. Тренировок >= 4
-    // 2. Мы еще НЕ показывали диалог
+    // Условие: Тренировок >= 4 И мы еще не показывали диалог
     if (provider.userStats.totalWorkouts >= 4 && !provider.isRatingShown) {
       showDialog(
         context: context,
@@ -40,8 +37,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context) => const RateAppDialog(),
       ).then((userResult) {
         if (userResult == true) {
+          // Если пользователь поставил оценку
           provider.markRatingAsShown();
         }
+        // Если нажал "Позже" - ничего не делаем, спросим потом снова
       });
     }
   }
@@ -125,11 +124,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   },
                   child: Column(
                     children: [
-                      // --- АВАТАР ---
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.grey[800],
-                        // Если есть фото - показываем, нет - иконка
                         backgroundImage: stats.profilePicturePath != null
                             ? FileImage(File(stats.profilePicturePath!))
                             : null,
@@ -141,7 +138,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               )
                             : null,
                       ),
-                      // --------------,
                       const SizedBox(height: 10),
                       Text(
                         stats.name,
@@ -164,24 +160,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 const SizedBox(height: 30),
 
-                // --- НОВЫЕ ГРАДИЕНТНЫЕ ШКАЛЫ ---
+                // --- ШКАЛЫ ---
 
-                // 1. ОПЫТ (Голубой)
+                // 1. ТРЕНИРОВКИ (Вместо Опыта)
                 _buildGradientStatBar(
-                  label: "ОПЫТ",
+                  label: "ТРЕНИРОВКИ",
                   level: stats.level,
-                  current: stats.exp,
-                  max: stats.expToNextLevel,
-                  icon: Icons.star,
+                  current: stats.totalWorkouts,
+                  max: stats.workoutsTargetForNextLevel, // Цель берем из модели
+                  icon: Icons.timer,
                   colors: [
                     const Color(0xFF2193b0),
                     const Color(0xFF6dd5ed),
-                  ], // Голубой градиент
+                  ], // Голубой
                 ),
 
                 const SizedBox(height: 16),
 
-                // 2. СИЛА (Красный)
+                // 2. СИЛА
                 _buildGradientStatBar(
                   label: "СИЛА",
                   level: stats.strengthLevel,
@@ -191,12 +187,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   colors: [
                     const Color(0xFFcb2d3e),
                     const Color(0xFFef473a),
-                  ], // Красный градиент
+                  ], // Красный
                 ),
 
                 const SizedBox(height: 16),
 
-                // 3. ВЫНОСЛИВОСТЬ (Оранжевый)
+                // 3. ВЫНОСЛИВОСТЬ
                 _buildGradientStatBar(
                   label: "ВЫНОСЛИВОСТЬ",
                   level: stats.enduranceLevel,
@@ -206,7 +202,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   colors: [
                     const Color(0xFFff9966),
                     const Color(0xFFff5e62),
-                  ], // Оранжевый градиент
+                  ], // Оранжевый
                 ),
 
                 const SizedBox(height: 40),
@@ -248,7 +244,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Виджет для рисования красивой полоски
   Widget _buildGradientStatBar({
     required String label,
     required int level,
